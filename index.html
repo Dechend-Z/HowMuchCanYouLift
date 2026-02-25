@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Barbell Calculator - Strength & Weight Tracker</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+
+<body>
+    <div class="app-container">
+
+        <!-- HEADER -->
+        <header class="header">
+            <div class="header-content">
+                <h1 class="logo">
+                    <span class="logo-icon">🏋️</span>
+                    <span class="logo-text">How Much Can You Lift?</span>                    
+                </h1>
+                <span class="logo-tagline">Know your numbers. Train smarter.</span>
+                <div class="header-actions">
+                    <div class="unit-toggle">
+                        <button class="unit-btn active" data-unit="kg">KG</button>
+                        <button class="unit-btn" data-unit="lb">LB</button>
+                    </div>
+                    <button class="btn-icon btn-reset" id="resetBtn" title="Reset All">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                            stroke-width="2">
+                            <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 12" />
+                            <path d="M3 3v9h9" />
+                        </svg>
+                    </button>
+                </div>
+            </div>
+        </header>
+
+        <!-- MAIN CONTENT -->
+        <main class="main-content">
+
+            <!-- LEFT COLUMN - Total Display (Sticky on desktop) -->
+            <aside class="sidebar">
+                <div class="card total-card">
+                    <h2 class="card-title">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                            stroke-width="2">
+                            <rect x="2" y="7" width="20" height="14" rx="2" />
+                            <path d="M12 7v14M2 11h20" />
+                        </svg>
+                        Total Weight
+                    </h2>
+
+                    <div class="total-display">
+                        <div class="total-primary" id="totalWeightPrimary">
+                            <span class="total-value" id="totalValue">0</span>
+                            <span class="total-unit" id="totalUnit">kg</span>
+                        </div>
+                        <div class="total-secondary" id="totalWeightSecondary">
+                            0 lb
+                        </div>
+                        <div class="max-load-warning" id="maxLoadWarning" style="display: none;">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                stroke-width="2">
+                                <path
+                                    d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
+                                <line x1="12" y1="9" x2="12" y2="13" />
+                                <line x1="12" y1="17" x2="12.01" y2="17" />
+                            </svg>
+                            <span>Exceeds bar max load!</span>
+                        </div>
+                    </div>
+
+                    <div class="plate-visual" id="plateVisual">
+                        <div class="plate-visual-empty">
+                            <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                stroke-width="1.5">
+                                <rect x="2" y="7" width="20" height="10" rx="1" />
+                                <path d="M12 7v10" />
+                            </svg>
+                            <span>No plates loaded</span>
+                        </div>
+                    </div>
+                </div>
+            </aside>
+
+            <!-- RIGHT COLUMN - Controls -->
+            <section class="controls-section">
+
+                <!-- BAR SELECTION -->
+                <div class="card">
+                    <h2 class="card-title">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                            stroke-width="2">
+                            <path d="M4 12h16M4 8h16M4 16h16" />
+                        </svg>
+                        Bar Type
+                    </h2>
+                    <div class="bar-options" id="barOptions">
+                        <label class="radio-card">
+                            <input type="radio" name="barType" value="olympic" checked>
+                            <div class="radio-content">
+                                <span class="radio-label">Olympic Bar</span>
+                                <span class="radio-value" data-kg="20" data-lb="45">20 kg / 45 lb</span>
+                            </div>
+                        </label>
+                        <label class="radio-card">
+                            <input type="radio" name="barType" value="womens">
+                            <div class="radio-content">
+                                <span class="radio-label">Women's Bar</span>
+                                <span class="radio-value" data-kg="15" data-lb="35">15 kg / 35 lb</span>
+                            </div>
+                        </label>
+                        <label class="radio-card">
+                            <input type="radio" name="barType" value="training">
+                            <div class="radio-content">
+                                <span class="radio-label">Training Bar</span>
+                                <span class="radio-value" data-kg="10" data-lb="22">10 kg / 22 lb</span>
+                            </div>
+                        </label>
+                        <label class="radio-card">
+                            <input type="radio" name="barType" value="custom">
+                            <div class="radio-content">
+                                <span class="radio-label">Custom Weight</span>
+                                <span class="radio-value">Enter your own</span>
+                            </div>
+                        </label>
+                    </div>
+                    <div class="custom-bar-input" id="customBarContainer" style="display: none;">
+                        <div class="input-group">
+                            <input type="number" id="customBarWeight" class="input-field" placeholder="Enter weight"
+                                step="0.1" min="0">
+                            <span class="input-suffix" id="customBarUnit">kg</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- PLATE SELECTION -->
+                <div class="card">
+                    <h2 class="card-title">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                            stroke-width="2">
+                            <circle cx="12" cy="12" r="10" />
+                            <circle cx="12" cy="12" r="4" />
+                        </svg>
+                        Plates (Per Side)
+                    </h2>
+
+                    <div class="plate-grid" id="plateGrid"></div>
+
+                    <div class="add-plate-section">
+                        <button class="btn btn-secondary" id="addPlateBtn">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                stroke-width="2">
+                                <circle cx="12" cy="12" r="10" />
+                                <path d="M12 8v8M8 12h8" />
+                            </svg>
+                            Add Custom Plate
+                        </button>
+                        <div class="custom-plate-input" id="customPlateContainer" style="display: none;">
+                            <div class="input-group">
+                                <input type="number" id="customPlateWeight" class="input-field"
+                                    placeholder="Plate weight" step="0.1" min="0.1">
+                                <span class="input-suffix" id="customPlateUnit">kg</span>
+                                <button class="btn btn-confirm" id="confirmPlateBtn">
+                                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                        stroke-width="2">
+                                        <polyline points="20 6 9 17 4 12" />
+                                    </svg>
+                                </button>
+                                <button class="btn btn-cancel" id="cancelPlateBtn">
+                                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                        stroke-width="2">
+                                        <line x1="18" y1="6" x2="6" y2="18" />
+                                        <line x1="6" y1="6" x2="18" y2="18" />
+                                    </svg>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- STRENGTH CALCULATOR -->
+                <div class="card">
+                    <h2 class="card-title">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                            stroke-width="2">
+                            <path d="M12 2v20M2 12h20" />
+                            <path d="M12 8l4 4-4 4M12 16l-4-4 4-4" />
+                        </svg>
+                        Strength Calculator
+                    </h2>
+
+                    <div class="strength-grid">
+                        <div class="strength-inputs">
+                            <div class="form-group">
+                                <label for="bodyweight">Bodyweight</label>
+                                <div class="input-group">
+                                    <input type="number" id="bodyweight" class="input-field"
+                                        placeholder="Your bodyweight" step="0.1" min="0">
+                                    <span class="input-suffix" id="bodyweightUnit">kg</span>
+                                </div>
+                            </div>
+
+                            <div class="form-group">
+                                <label for="exercise">Exercise</label>
+                                <select id="exercise" class="select-field">
+                                    <option value="bench">Bench Press</option>
+                                    <option value="squat">Squat</option>
+                                    <option value="deadlift">Deadlift</option>
+                                    <option value="ohp">Overhead Press</option>
+                                </select>
+                            </div>
+
+                            <div class="form-group">
+                                <label for="reps">Reps (for 1RM)</label>
+                                <input type="number" id="reps" class="input-field" placeholder="Number of reps" min="1"
+                                    max="15">
+                            </div>
+                        </div>
+
+                        <div class="strength-results">
+                            <div class="result-item">
+                                <span class="result-label">Ratio</span>
+                                <span class="result-value" id="strengthRatio">--</span>
+                            </div>
+                            <div class="result-item">
+                                <span class="result-label">Level</span>
+                                <span class="result-badge" id="strengthLevel">--</span>
+                            </div>
+                            <div class="result-item onerm-item">
+                                <div class="onerm-label">Estimated 1RM</div>
+                                <div class="onerm-values">
+                                    <span class="onerm-primary" id="oneRmPrimary">--</span>
+                                    <span class="onerm-secondary" id="oneRmSecondary">--</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+            </section>
+        </main>
+
+        <!-- FOOTER -->
+        <footer class="footer">
+            <div class="footer-content">
+                <span class="save-status">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
+                        <polyline points="22 4 12 14.01 9 11.01" />
+                    </svg>
+                    Auto-saved
+                </span>
+                <span class="last-saved" id="lastSaved">Never saved</span>
+            </div>
+        </footer>
+
+    </div>
+
+    <script src="app.js"></script>
+</body>
+
+</html>
