@@ -154,10 +154,17 @@
                 <section class="panel" aria-labelledby="strengthTitle">
                     <header class="panel-head">
                         <h2 class="panel-title" id="strengthTitle">Strength check</h2>
-                        <span class="panel-note">Uses the weight on the bar</span>
+                        <span class="panel-note">Scale ends at your class WR</span>
                     </header>
 
                     <div class="strength-inputs">
+                        <fieldset class="field">
+                            <legend class="field-label">Sex</legend>
+                            <div class="segmented segmented-field">
+                                <label class="seg-option"><input type="radio" name="sex" value="male" checked><span>Male</span></label>
+                                <label class="seg-option"><input type="radio" name="sex" value="female"><span>Female</span></label>
+                            </div>
+                        </fieldset>
                         <div class="field">
                             <label for="bodyweight" class="field-label">Bodyweight</label>
                             <div class="input-wrap">
@@ -196,6 +203,11 @@
                             <span class="stat-value" id="oneRmPrimary">--</span>
                             <span class="stat-sub" id="oneRmSecondary"></span>
                         </div>
+                        <div class="stat">
+                            <span class="stat-label" id="wrLabel">World record</span>
+                            <span class="stat-value" id="wrValue">--</span>
+                            <span class="stat-sub" id="wrSub"></span>
+                        </div>
                     </div>
 
                     <div class="level-scale" id="levelScale" aria-hidden="true">
@@ -208,10 +220,11 @@
                             <i class="level-marker" id="levelMarker"></i>
                         </div>
                         <div class="level-names">
-                            <span>Beginner</span><span>Novice</span><span>Intermediate</span><span>Advanced</span><span>Elite</span>
+                            <span>Beginner</span><span>Novice</span><span>Intermediate</span><span>Advanced</span><span>Elite</span><b class="level-wr" id="wrEnd">WR</b>
                         </div>
                     </div>
                     <p class="hint" id="strengthHint">Enter your bodyweight to see where this lift ranks.</p>
+                    <p class="source">Levels: <a href="https://strengthlevel.com/strength-standards" target="_blank" rel="noopener">StrengthLevel</a> community standards (Novice beats 20% of lifters, Elite 95%). Records: best raw lifts per IPF class from <a href="https://www.openipf.org/records/raw/ipf-classes" target="_blank" rel="noopener">OpenIPF</a>, Nov 2026.</p>
                 </section>
 
             </div>
