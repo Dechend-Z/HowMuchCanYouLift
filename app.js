@@ -1,7 +1,6 @@
 /**
  * ============================================
- * BARBELL CALCULATOR
- * Modular JavaScript Application
+ * HOW MUCH CAN YOU LIFT — BARBELL CALCULATOR
  * ============================================
  */
 
@@ -10,55 +9,35 @@
 // ============================================
 
 const CONFIG = {
-    // Conversion factor
     KG_TO_LB: 2.20462,
 
-    // Default plate weights
     plates: {
         kg: [25, 20, 15, 10, 5, 2.5, 1.25],
         lb: [55, 45, 35, 25, 15, 10, 5, 2.5]
     },
 
-    // Bar definitions (weights in kg and lb)
+    // IWF-style colour coding per unit
+    plateColors: {
+        kg: { 25: 'red', 20: 'blue', 15: 'yellow', 10: 'green', 5: 'white', 2.5: 'red', 1.25: 'steel' },
+        lb: { 55: 'red', 45: 'blue', 35: 'yellow', 25: 'green', 15: 'steel', 10: 'white', 5: 'red', 2.5: 'steel' }
+    },
+
     bars: {
         olympic: { kg: 20, lb: 45, name: 'Olympic Bar', maxLoad: { kg: 500, lb: 1100 } },
         womens: { kg: 15, lb: 35, name: "Women's Bar", maxLoad: { kg: 350, lb: 770 } },
         training: { kg: 10, lb: 22, name: 'Training Bar', maxLoad: { kg: 250, lb: 550 } }
     },
 
-    // Strength standards (ratio = lift weight / bodyweight)
+    // Ratio = lift weight / bodyweight
     strengthStandards: {
-        bench: {
-            beginner: 0.75,
-            novice: 1.0,
-            intermediate: 1.5,
-            advanced: 2.0,
-            elite: 2.5
-        },
-        squat: {
-            beginner: 0.8,
-            novice: 1.2,
-            intermediate: 1.6,
-            advanced: 2.2,
-            elite: 2.8
-        },
-        deadlift: {
-            beginner: 1.0,
-            novice: 1.5,
-            intermediate: 2.0,
-            advanced: 2.5,
-            elite: 3.0
-        },
-        ohp: {
-            beginner: 0.5,
-            novice: 0.75,
-            intermediate: 1.0,
-            advanced: 1.3,
-            elite: 1.6
-        }
+        bench: { beginner: 0.75, novice: 1.0, intermediate: 1.5, advanced: 2.0, elite: 2.5 },
+        squat: { beginner: 0.8, novice: 1.2, intermediate: 1.6, advanced: 2.2, elite: 2.8 },
+        deadlift: { beginner: 1.0, novice: 1.5, intermediate: 2.0, advanced: 2.5, elite: 3.0 },
+        ohp: { beginner: 0.5, novice: 0.75, intermediate: 1.0, advanced: 1.3, elite: 1.6 }
     },
 
-    // Exercise display names
+    levels: ['beginner', 'novice', 'intermediate', 'advanced', 'elite'],
+
     exercises: {
         bench: 'Bench Press',
         squat: 'Squat',
@@ -66,140 +45,95 @@ const CONFIG = {
         ohp: 'Overhead Press'
     },
 
-    // LocalStorage key
     storageKey: 'barbellCalculatorData'
 };
 
 // ============================================
-// APPLICATION STATE
+// STATE
 // ============================================
 
 const state = {
-    unit: 'kg',                    // Current unit: 'kg' or 'lb'
-    barType: 'olympic',            // Selected bar type
-    customBarWeight: null,         // Custom bar weight in current unit
-    plates: {},                    // Plate counts: { weight: count }
-    customPlates: [],              // Array of custom plate weights
-    bodyweight: null,              // User's bodyweight
-    exercise: 'bench',             // Selected exercise
-    reps: null                     // Reps for 1RM calculation
+    unit: 'kg',
+    barType: 'olympic',
+    customBarWeight: null,  // in current unit
+    plates: {},             // { weight: countPerSide } in current unit
+    customPlates: [],       // custom plate weights in current unit
+    bodyweight: null,       // in current unit
+    exercise: 'bench',
+    reps: null
 };
 
 // ============================================
-// UTILITY FUNCTIONS
+// UTILITIES
 // ============================================
 
-/**
- * Convert kilograms to pounds
- */
-function kgToLb(kg) {
-    return kg * CONFIG.KG_TO_LB;
-}
+const kgToLb = kg => kg * CONFIG.KG_TO_LB;
+const lbToKg = lb => lb / CONFIG.KG_TO_LB;
+const toKg = w => (state.unit === 'kg' ? w : lbToKg(w));
+const round = (n, d = 2) => Math.round(n * 10 ** d) / 10 ** d;
 
-/**
- * Convert pounds to kilograms
- */
-function lbToKg(lb) {
-    return lb / CONFIG.KG_TO_LB;
-}
-
-/**
- * Format number for display
- */
 function formatNumber(num, decimals = 1) {
     if (num === null || num === undefined || isNaN(num)) return '--';
     return num.toFixed(decimals);
 }
 
-/**
- * Get plate color based on weight (IWF standard for kg)
- */
-function getPlateColor(weight) {
-    const colorMap = {
-        25: 'var(--plate-25)',
-        20: 'var(--plate-20)',
-        15: 'var(--plate-15)',
-        10: 'var(--plate-10)',
-        5: 'var(--plate-5)',
-        2.5: 'var(--plate-2-5)',
-        1.25: 'var(--plate-1-25)'
-    };
-    return colorMap[weight] || 'var(--plate-2-5)';
+/** Show whole numbers without a trailing .0 */
+function formatWeight(num) {
+    if (num === null || num === undefined || isNaN(num)) return '--';
+    const r = round(num, 2);
+    return Number.isInteger(r) ? String(r) : String(round(r, 2));
 }
 
-/**
- * Debounce function for save operations
- */
+function getPlateColor(weight) {
+    const name = CONFIG.plateColors[state.unit][weight];
+    return name ? `var(--plate-${name})` : 'var(--plate-custom)';
+}
+
 function debounce(func, wait) {
     let timeout;
-    return function executedFunction(...args) {
-        const later = () => {
-            clearTimeout(timeout);
-            func(...args);
-        };
+    return (...args) => {
         clearTimeout(timeout);
-        timeout = setTimeout(later, wait);
+        timeout = setTimeout(() => func(...args), wait);
     };
 }
 
 // ============================================
-// LOCAL STORAGE FUNCTIONS
+// STORAGE
 // ============================================
 
-/**
- * Save application state to localStorage
- */
 function saveState() {
     try {
-        const dataToSave = {
-            unit: state.unit,
-            barType: state.barType,
-            customBarWeight: state.customBarWeight,
-            plates: state.plates,
-            customPlates: state.customPlates,
-            bodyweight: state.bodyweight,
-            exercise: state.exercise,
-            reps: state.reps,
+        localStorage.setItem(CONFIG.storageKey, JSON.stringify({
+            ...state,
             lastSaved: new Date().toISOString()
-        };
-        localStorage.setItem(CONFIG.storageKey, JSON.stringify(dataToSave));
+        }));
         updateLastSavedDisplay();
     } catch (e) {
         console.warn('Failed to save state:', e);
     }
 }
 
-/**
- * Load application state from localStorage
- */
 function loadState() {
     try {
         const saved = localStorage.getItem(CONFIG.storageKey);
-        if (saved) {
-            const data = JSON.parse(saved);
-            state.unit = data.unit || 'kg';
-            state.barType = data.barType || 'olympic';
-            state.customBarWeight = data.customBarWeight || null;
-            state.plates = data.plates || {};
-            state.customPlates = data.customPlates || [];
-            state.bodyweight = data.bodyweight || null;
-            state.exercise = data.exercise || 'bench';
-            state.reps = data.reps || null;
-            
-            if (data.lastSaved) {
-                updateLastSavedDisplay(new Date(data.lastSaved));
-            }
-            return true;
-        }
+        if (!saved) return false;
+        const data = JSON.parse(saved);
+        state.unit = data.unit === 'lb' ? 'lb' : 'kg';
+        state.barType = data.barType || 'olympic';
+        state.customBarWeight = data.customBarWeight || null;
+        state.plates = data.plates || {};
+        state.customPlates = data.customPlates || [];
+        state.bodyweight = data.bodyweight || null;
+        state.exercise = data.exercise || 'bench';
+        state.reps = data.reps || null;
+        if (data.lastSaved) updateLastSavedDisplay(new Date(data.lastSaved));
+        return true;
     } catch (e) {
         console.warn('Failed to load state:', e);
     }
     return false;
 }
 
-/**
- * Clear application state from localStorage
- */
 function clearState() {
     try {
         localStorage.removeItem(CONFIG.storageKey);
@@ -209,443 +143,376 @@ function clearState() {
 }
 
 // ============================================
-// DOM ELEMENTS
+// DOM
 // ============================================
 
+const $ = id => document.getElementById(id);
+
 const elements = {
-    // Header
     unitBtns: document.querySelectorAll('.unit-btn'),
-    resetBtn: document.getElementById('resetBtn'),
-    lastSaved: document.getElementById('lastSaved'),
-    
-    // Bar selection
+    resetBtn: $('resetBtn'),
+    lastSaved: $('lastSaved'),
+
     barRadios: document.querySelectorAll('input[name="barType"]'),
-    customBarContainer: document.getElementById('customBarContainer'),
-    customBarWeight: document.getElementById('customBarWeight'),
-    customBarUnit: document.getElementById('customBarUnit'),
-    
-    // Plates
-    plateGrid: document.getElementById('plateGrid'),
-    addPlateBtn: document.getElementById('addPlateBtn'),
-    customPlateContainer: document.getElementById('customPlateContainer'),
-    customPlateWeight: document.getElementById('customPlateWeight'),
-    customPlateUnit: document.getElementById('customPlateUnit'),
-    confirmPlateBtn: document.getElementById('confirmPlateBtn'),
-    cancelPlateBtn: document.getElementById('cancelPlateBtn'),
-    
-    // Total display
-    totalValue: document.getElementById('totalValue'),
-    totalUnit: document.getElementById('totalUnit'),
-    totalWeightSecondary: document.getElementById('totalWeightSecondary'),
-    maxLoadWarning: document.getElementById('maxLoadWarning'),
-    plateVisual: document.getElementById('plateVisual'),
-    
-    // Strength calculator
-    bodyweight: document.getElementById('bodyweight'),
-    bodyweightUnit: document.getElementById('bodyweightUnit'),
-    exercise: document.getElementById('exercise'),
-    reps: document.getElementById('reps'),
-    strengthRatio: document.getElementById('strengthRatio'),
-    strengthLevel: document.getElementById('strengthLevel'),
-    oneRmPrimary: document.getElementById('oneRmPrimary'),
-    oneRmSecondary: document.getElementById('oneRmSecondary')
+    customBarContainer: $('customBarContainer'),
+    customBarWeight: $('customBarWeight'),
+    customBarUnit: $('customBarUnit'),
+
+    plateGrid: $('plateGrid'),
+    addPlateBtn: $('addPlateBtn'),
+    customPlateContainer: $('customPlateContainer'),
+    customPlateWeight: $('customPlateWeight'),
+    customPlateUnit: $('customPlateUnit'),
+    confirmPlateBtn: $('confirmPlateBtn'),
+    cancelPlateBtn: $('cancelPlateBtn'),
+
+    scoreboard: $('scoreboard'),
+    totalValue: $('totalValue'),
+    totalUnit: $('totalUnit'),
+    totalWeightSecondary: $('totalWeightSecondary'),
+    totalBreakdown: $('totalBreakdown'),
+    maxLoadWarning: $('maxLoadWarning'),
+    plateVisual: $('plateVisual'),
+    miniTotal: $('miniTotal'),
+    miniTotalValue: $('miniTotalValue'),
+    miniTotalUnit: $('miniTotalUnit'),
+
+    bodyweight: $('bodyweight'),
+    bodyweightUnit: $('bodyweightUnit'),
+    exercise: $('exercise'),
+    reps: $('reps'),
+    strengthRatio: $('strengthRatio'),
+    strengthLevel: $('strengthLevel'),
+    oneRmPrimary: $('oneRmPrimary'),
+    oneRmSecondary: $('oneRmSecondary'),
+    levelScale: $('levelScale'),
+    levelMarker: $('levelMarker'),
+    strengthHint: $('strengthHint')
 };
 
 // ============================================
-// UI UPDATE FUNCTIONS
+// UI UPDATES
 // ============================================
 
-/**
- * Update unit toggle display
- */
 function updateUnitDisplay() {
     elements.unitBtns.forEach(btn => {
-        btn.classList.toggle('active', btn.dataset.unit === state.unit);
+        const active = btn.dataset.unit === state.unit;
+        btn.classList.toggle('active', active);
+        btn.setAttribute('aria-pressed', String(active));
     });
-    
-    // Update all unit labels
-    elements.totalUnit.textContent = state.unit;
-    elements.customBarUnit.textContent = state.unit;
-    elements.customPlateUnit.textContent = state.unit;
-    elements.bodyweightUnit.textContent = state.unit;
+
+    [elements.totalUnit, elements.customBarUnit, elements.customPlateUnit,
+        elements.bodyweightUnit, elements.miniTotalUnit].forEach(el => {
+        el.textContent = state.unit;
+    });
 }
 
-/**
- * Update bar selection display
- */
 function updateBarDisplay() {
     elements.barRadios.forEach(radio => {
         radio.checked = radio.value === state.barType;
     });
-    
-    // Show/hide custom bar input
+
     const showCustom = state.barType === 'custom';
-    elements.customBarContainer.style.display = showCustom ? 'block' : 'none';
-    
+    elements.customBarContainer.style.display = showCustom ? 'grid' : 'none';
     if (showCustom && state.customBarWeight !== null) {
-        elements.customBarWeight.value = state.customBarWeight;
+        elements.customBarWeight.value = formatWeight(state.customBarWeight);
     }
 }
 
-/**
- * Get current bar weight in kg
- */
 function getBarWeightKg() {
-    if (state.barType === 'custom' && state.customBarWeight !== null) {
-        return state.unit === 'kg' 
-            ? state.customBarWeight 
-            : lbToKg(state.customBarWeight);
+    if (state.barType === 'custom') {
+        return state.customBarWeight ? toKg(state.customBarWeight) : 0;
     }
-    
     const bar = CONFIG.bars[state.barType];
     return bar ? bar.kg : 20;
 }
 
-/**
- * Render plate grid
- */
+function getBarWeightDisplay() {
+    if (state.barType === 'custom') return state.customBarWeight || 0;
+    const bar = CONFIG.bars[state.barType];
+    return bar ? bar[state.unit] : 0;
+}
+
+function getPlateList() {
+    return [...CONFIG.plates[state.unit], ...state.customPlates].sort((a, b) => b - a);
+}
+
+function plateSubtext(weight, count) {
+    return count > 0
+        ? `${formatWeight(count * weight * 2)} ${state.unit} both sides`
+        : 'None loaded';
+}
+
 function renderPlateGrid() {
-    const currentPlates = state.unit === 'kg'
-        ? [...CONFIG.plates.kg, ...state.customPlates]
-        : [...CONFIG.plates.lb, ...state.customPlates];
-    
-    // Sort plates descending
-    currentPlates.sort((a, b) => b - a);
-    
-    elements.plateGrid.innerHTML = currentPlates.map(weight => {
+    elements.plateGrid.innerHTML = getPlateList().map(weight => {
         const count = state.plates[weight] || 0;
-        const displayWeight = formatNumber(weight, weight % 1 !== 0 ? 1 : 0);
         const isCustom = state.customPlates.includes(weight);
-        
+        const label = `${formatWeight(weight)} ${state.unit}`;
+
         return `
-            <div class="plate-item" data-weight="${weight}">
-                <div class="plate-header">
-                    <span class="plate-weight">${displayWeight} ${state.unit}</span>
+            <div class="plate-item${count > 0 ? ' is-loaded' : ''}" data-weight="${weight}" style="--c: ${getPlateColor(weight)}">
+                <span class="plate-swatch" aria-hidden="true"></span>
+                <div class="plate-head">
+                    <div>
+                        <span class="plate-weight">${formatWeight(weight)}<small>${state.unit}</small></span>
+                        <span class="plate-subtext">${plateSubtext(weight, count)}</span>
+                    </div>
                     ${isCustom ? `
-                        <button class="plate-remove" data-weight="${weight}" title="Remove plate">
-                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                <line x1="18" y1="6" x2="6" y2="18"/>
-                                <line x1="6" y1="6" x2="18" y2="18"/>
+                        <button type="button" class="plate-remove" data-weight="${weight}" aria-label="Remove ${label} plate">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true">
+                                <path d="M18 6L6 18M6 6l12 12"/>
                             </svg>
-                        </button>
-                    ` : ''}
+                        </button>` : ''}
                 </div>
                 <div class="plate-controls">
-                    <button class="plate-btn btn-decrease" data-weight="${weight}">−</button>
-                    <span class="plate-count">${count}</span>
-                    <button class="plate-btn btn-increase" data-weight="${weight}">+</button>
+                    <button type="button" class="plate-btn btn-decrease" data-weight="${weight}" aria-label="Remove one ${label} plate per side" ${count === 0 ? 'disabled' : ''}>−</button>
+                    <span class="plate-count" aria-live="polite" aria-label="${count} per side">${count}</span>
+                    <button type="button" class="plate-btn btn-increase" data-weight="${weight}" aria-label="Add one ${label} plate per side">+</button>
                 </div>
-                <div class="plate-subtext">${count > 0 ? formatNumber(count * weight * 2, 1) : '0'} ${state.unit} total</div>
-            </div>
-        `;
+            </div>`;
     }).join('');
-    
-    setupPlateEventListeners();
 }
 
-/**
- * Setup plate event listeners
- */
-function setupPlateEventListeners() {
-    // Increase buttons
-    document.querySelectorAll('.btn-increase').forEach(btn => {
-        btn.addEventListener('click', (e) => {
-            const weight = parseFloat(e.target.dataset.weight);
-            state.plates[weight] = (state.plates[weight] || 0) + 1;
-            updatePlateGrid();
-            calculateTotal();
-            debouncedSave();
-        });
-    });
-    
-    // Decrease buttons
-    document.querySelectorAll('.btn-decrease').forEach(btn => {
-        btn.addEventListener('click', (e) => {
-            const weight = parseFloat(e.target.dataset.weight);
-            if (state.plates[weight] > 0) {
-                state.plates[weight]--;
-                updatePlateGrid();
-                calculateTotal();
-                debouncedSave();
-            }
-        });
-    });
-    
-    // Remove custom plates
-    document.querySelectorAll('.plate-remove').forEach(btn => {
-        btn.addEventListener('click', (e) => {
-            e.stopPropagation();
-            const weight = parseFloat(e.target.dataset.weight);
-            removeCustomPlate(weight);
-        });
-    });
-}
-
-/**
- * Update plate grid counts only (for performance)
- */
+/** Update counts in place without rebuilding the grid (keeps focus) */
 function updatePlateGrid() {
-    document.querySelectorAll('.plate-item').forEach(item => {
+    elements.plateGrid.querySelectorAll('.plate-item').forEach(item => {
         const weight = parseFloat(item.dataset.weight);
         const count = state.plates[weight] || 0;
-        item.querySelector('.plate-count').textContent = count;
-        item.querySelector('.plate-subtext').textContent = 
-            `${count > 0 ? formatNumber(count * weight * 2, 1) : '0'} ${state.unit} total`;
+        const countEl = item.querySelector('.plate-count');
+        countEl.textContent = count;
+        countEl.setAttribute('aria-label', `${count} per side`);
+        item.querySelector('.plate-subtext').textContent = plateSubtext(weight, count);
+        item.querySelector('.btn-decrease').disabled = count === 0;
+        item.classList.toggle('is-loaded', count > 0);
     });
 }
 
-/**
- * Render plate visual (barbell with plates - mirrored left side)
- */
+/** Plate drawing size from its kg-equivalent weight */
+function plateDims(weight) {
+    const kg = Math.min(toKg(weight), 25);
+    return {
+        h: Math.round(40 + kg * 2.4),      // 25 kg → 100px, 1.25 kg → 43px
+        w: Math.round(6 + kg * 0.5)        // 25 kg → 18px, 1.25 kg → 7px
+    };
+}
+
 function renderPlateVisual() {
-    const platesWithCount = Object.entries(state.plates)
-        .filter(([_, count]) => count > 0)
-        .sort(([a], [b]) => parseFloat(b) - parseFloat(a));
-    
-    if (platesWithCount.length === 0) {
-        elements.plateVisual.innerHTML = `
-            <div class="plate-visual-empty">
-                <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-                    <rect x="2" y="7" width="20" height="10" rx="1"/>
-                    <path d="M12 7v10"/>
-                </svg>
-                <span>No plates loaded</span>
-            </div>
-        `;
+    const loaded = Object.entries(state.plates)
+        .map(([w, c]) => [parseFloat(w), c])
+        .filter(([, c]) => c > 0)
+        .sort(([a], [b]) => b - a);
+
+    // Heaviest plates sit closest to the collar
+    const discs = [];
+    loaded.forEach(([weight, count]) => {
+        const { w, h } = plateDims(weight);
+        for (let i = 0; i < count; i++) {
+            discs.push(`<span class="bb-plate" style="--w:${w}px;--h:${h}px;--c:${getPlateColor(weight)}"></span>`);
+        }
+    });
+    const stack = discs.join('');
+
+    const totalPerSide = loaded.reduce((s, [, c]) => s + c, 0);
+    elements.plateVisual.setAttribute('aria-label', totalPerSide === 0
+        ? 'Empty barbell'
+        : `Barbell with ${loaded.map(([w, c]) => `${c} × ${formatWeight(w)} ${state.unit}`).join(', ')} on each side`);
+
+    elements.plateVisual.innerHTML = `
+        <div class="bb-inner">
+            <div class="bb-side left">${stack}</div>
+            <span class="bb-collar"></span>
+            <span class="bb-shaft"></span>
+            <span class="bb-collar"></span>
+            <div class="bb-side right">${stack}</div>
+        </div>
+        ${totalPerSide === 0 ? '<span class="barbell-empty-note">Empty bar — add plates below</span>' : ''}`;
+
+    fitBarbell();
+}
+
+/** Scale the drawing down when a heavy load would overflow */
+function fitBarbell() {
+    const inner = elements.plateVisual.querySelector('.bb-inner');
+    if (!inner) return;
+    inner.style.setProperty('--bb-scale', 1);
+    const available = elements.plateVisual.clientWidth - 8;
+    const needed = inner.scrollWidth;
+    const scale = needed > available ? available / needed : 1;
+    inner.style.setProperty('--bb-scale', scale.toFixed(3));
+}
+
+function updateTotalDisplay(totalKg, totalLb) {
+    const primary = state.unit === 'kg' ? totalKg : totalLb;
+    const secondary = state.unit === 'kg' ? totalLb : totalKg;
+    const secondaryUnit = state.unit === 'kg' ? 'lb' : 'kg';
+    const text = formatNumber(primary, 1);
+
+    if (elements.totalValue.textContent !== text) {
+        elements.totalValue.classList.remove('updating');
+        void elements.totalValue.offsetWidth; // restart animation
+        elements.totalValue.classList.add('updating');
+    }
+
+    elements.totalValue.textContent = text;
+    elements.miniTotalValue.textContent = text;
+    elements.totalWeightSecondary.textContent = `${formatNumber(secondary, 1)} ${secondaryUnit}`;
+
+    const platesPerSide = Object.entries(state.plates)
+        .reduce((sum, [w, c]) => sum + parseFloat(w) * c, 0);
+    const bar = getBarWeightDisplay();
+    elements.totalBreakdown.textContent = platesPerSide > 0
+        ? `Bar ${formatWeight(bar)} + ${formatWeight(platesPerSide)} × 2`
+        : `Bar only (${formatWeight(bar)} ${state.unit})`;
+}
+
+function getLevel(ratio) {
+    const s = CONFIG.strengthStandards[state.exercise];
+    if (ratio >= s.elite) return 'elite';
+    if (ratio >= s.advanced) return 'advanced';
+    if (ratio >= s.intermediate) return 'intermediate';
+    if (ratio >= s.novice) return 'novice';
+    return 'beginner';
+}
+
+/** Position on the 5-segment scale, 0–1 */
+function getScalePosition(ratio) {
+    const s = CONFIG.strengthStandards[state.exercise];
+    const edges = [0, s.novice, s.intermediate, s.advanced, s.elite, s.elite * 1.3];
+    for (let i = 0; i < 5; i++) {
+        if (ratio < edges[i + 1]) {
+            return (i + (ratio - edges[i]) / (edges[i + 1] - edges[i])) / 5;
+        }
+    }
+    return 1;
+}
+
+function updateStrengthLevel(ratio) {
+    const segments = elements.levelScale.querySelectorAll('.level-track span');
+
+    if (ratio === null) {
+        elements.strengthLevel.textContent = '--';
+        elements.strengthLevel.className = 'level-badge';
+        segments.forEach(seg => seg.classList.remove('is-reached', 'is-current'));
+        elements.levelMarker.classList.remove('is-visible');
         return;
     }
-    
-    const createPlateDiscs = (weight, count) => {
-        const weightKg = state.unit === 'kg' ? weight : lbToKg(weight);
-        const color = getPlateColor(weightKg);
-        
-        // Determine size based on weight (heavier = thicker & taller)
-        let size = '5';
-        if (weight >= 25) size = '25';
-        else if (weight >= 20) size = '20';
-        else if (weight >= 15) size = '15';
-        else if (weight >= 10) size = '10';
-        else if (weight >= 5) size = '5';
-        else if (weight >= 2.5) size = '2.5';
-        else if (weight >= 1.25) size = '1.25';
-        
-        return Array(count).fill(0).map(() => 
-            `<div class="plate-disc" data-size="${size}" style="background: ${color};"></div>`
-        ).join('');
-    };
-    
-    // Calculate total sleeve width for barbell sleeve
-    let totalSleeveWidth = 0;
-    platesWithCount.forEach(([weight, count]) => {
-        const weightKg = state.unit === 'kg' ? weight : lbToKg(weight);
-        let size = '5';
-        if (weightKg >= 25) size = '25';
-        else if (weightKg >= 20) size = '20';
-        else if (weightKg >= 15) size = '15';
-        else if (weightKg >= 10) size = '10';
-        else if (weightKg >= 5) size = '5';
-        else if (weightKg >= 2.5) size = '2.5';
-        else if (weightKg >= 1.25) size = '1.25';
-        
-        const widths = { '25': 20, '20': 18, '15': 16, '10': 14, '5': 12, '2.5': 10, '1.25': 8 };
-        totalSleeveWidth += (widths[size] || 12) * count;
-    });
-    
-    // Sleeve width = total plates width + small gaps
-    const sleeveWidth = totalSleeveWidth + (platesWithCount.reduce((sum, [_, c]) => sum + c, 0) * 2);
-    
-    elements.plateVisual.innerHTML = `
-        <!-- Barbell sleeve behind plates -->
-        <div class="barbell-sleeve" style="width: ${sleeveWidth * 2 + 30}px;"></div>
-        
-        <!-- Left plate stack -->
-        <div class="plate-stack left">
-            ${platesWithCount.map(([weight, count]) => createPlateDiscs(weight, count)).join('')}
-        </div>
-        
-        <!-- Center barbell collar -->
-        <div class="barbell-center"></div>
-        
-        <!-- Right plate stack -->
-        <div class="plate-stack right">
-            ${platesWithCount.map(([weight, count]) => createPlateDiscs(weight, count)).join('')}
-        </div>
-    `;
-}
 
-/**
- * Update total weight display with animation
- */
-function updateTotalDisplay(totalKg, totalLb) {
-    const primaryValue = state.unit === 'kg' ? totalKg : totalLb;
-    const secondaryValue = state.unit === 'kg' ? totalLb : totalKg;
-    const secondaryUnit = state.unit === 'kg' ? 'lb' : 'kg';
-    
-    // Animate if value changed significantly
-    const currentValue = parseFloat(elements.totalValue.textContent);
-    if (Math.abs(currentValue - primaryValue) > 0.01) {
-        elements.totalValue.classList.add('updating');
-        setTimeout(() => {
-            elements.totalValue.classList.remove('updating');
-        }, 300);
-    }
-    
-    elements.totalValue.textContent = formatNumber(primaryValue, 1);
-    elements.totalWeightSecondary.textContent = `${formatNumber(secondaryValue, 1)} ${secondaryUnit}`;
-}
-
-/**
- * Update strength level badge
- */
-function updateStrengthLevel(ratio) {
-    const standards = CONFIG.strengthStandards[state.exercise];
-    let level = 'beginner';
-    
-    if (ratio >= standards.elite) level = 'elite';
-    else if (ratio >= standards.advanced) level = 'advanced';
-    else if (ratio >= standards.intermediate) level = 'intermediate';
-    else if (ratio >= standards.novice) level = 'novice';
-    
+    const level = getLevel(ratio);
+    const idx = CONFIG.levels.indexOf(level);
     elements.strengthLevel.textContent = level;
-    elements.strengthLevel.className = `result-badge ${level}`;
+    elements.strengthLevel.className = `level-badge ${level}`;
+
+    segments.forEach((seg, i) => {
+        seg.classList.toggle('is-reached', i < idx);
+        seg.classList.toggle('is-current', i === idx);
+    });
+    elements.levelMarker.style.left = `${(getScalePosition(ratio) * 100).toFixed(2)}%`;
+    elements.levelMarker.classList.add('is-visible');
 }
 
-/**
- * Update last saved display
- */
 function updateLastSavedDisplay(date = null) {
     const d = date || new Date();
-    const now = new Date();
-    const diffMs = now - d;
-    const diffMins = Math.floor(diffMs / 60000);
-    
+    const diffMins = Math.floor((Date.now() - d) / 60000);
     let text;
-    if (diffMins < 1) {
-        text = 'Just now';
-    } else if (diffMins < 60) {
-        text = `${diffMins} min ago`;
-    } else {
-        text = d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-    }
-    
+    if (diffMins < 1) text = 'just now';
+    else if (diffMins < 60) text = `${diffMins} min ago`;
+    else text = d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
     elements.lastSaved.textContent = text;
 }
 
 // ============================================
-// CALCULATION FUNCTIONS
+// CALCULATIONS
 // ============================================
 
-/**
- * Calculate total barbell weight
- */
 function calculateTotal() {
-    // Get bar weight in kg
-    const barWeightKg = getBarWeightKg();
-    
-    // Calculate plates weight (per side × 2)
-    let platesWeightKg = 0;
-    Object.entries(state.plates).forEach(([weight, count]) => {
-        const weightKg = state.unit === 'kg' 
-            ? parseFloat(weight) 
-            : lbToKg(parseFloat(weight));
-        platesWeightKg += weightKg * count * 2;
-    });
-    
-    const totalKg = barWeightKg + platesWeightKg;
+    const barKg = getBarWeightKg();
+    const platesKg = Object.entries(state.plates)
+        .reduce((sum, [w, c]) => sum + toKg(parseFloat(w)) * c * 2, 0);
+
+    const totalKg = barKg + platesKg;
     const totalLb = kgToLb(totalKg);
-    
-    // Check max load
-    checkMaxLoad(totalKg, totalLb);
-    
+
+    checkMaxLoad(totalKg);
     updateTotalDisplay(totalKg, totalLb);
     renderPlateVisual();
-    
-    // Update strength calculation if bodyweight is set
-    if (state.bodyweight && state.bodyweight > 0) {
-        calculateStrength(totalKg, totalLb);
-    }
-    
-    // Update 1RM if reps are set
-    if (state.reps && state.reps >= 1) {
-        calculateOneRM(totalKg, totalLb);
-    }
+    calculateStrength(totalKg);
+    calculateOneRM(totalKg);
 }
 
-/**
- * Check if load exceeds bar maximum
- */
-function checkMaxLoad(totalKg, totalLb) {
+function checkMaxLoad(totalKg) {
     const bar = CONFIG.bars[state.barType];
-    if (!bar || !bar.maxLoad) {
-        elements.maxLoadWarning.style.display = 'none';
-        return;
-    }
-    
-    const maxLoadKg = bar.maxLoad.kg;
-    const maxLoadLb = bar.maxLoad.lb;
-    
-    const exceeds = state.unit === 'kg' 
-        ? totalKg > maxLoadKg 
-        : totalLb > maxLoadLb;
-    
+    const exceeds = !!(bar && bar.maxLoad && totalKg > bar.maxLoad.kg);
     elements.maxLoadWarning.style.display = exceeds ? 'flex' : 'none';
 }
 
-/**
- * Calculate strength ratio and level
- */
-function calculateStrength(totalKg, totalLb) {
-    const bodyweightKg = state.unit === 'kg'
-        ? state.bodyweight
-        : lbToKg(state.bodyweight);
-    
-    const ratio = totalKg / bodyweightKg;
-    elements.strengthRatio.textContent = formatNumber(ratio, 2) + '×';
-    updateStrengthLevel(ratio);
-}
+function calculateStrength(totalKg) {
+    const hasBw = state.bodyweight && state.bodyweight > 0;
 
-/**
- * Calculate estimated 1RM using Epley formula
- * Formula: 1RM = weight × (1 + reps/30)
- */
-function calculateOneRM(totalKg, totalLb) {
-    const reps = state.reps;
-    if (reps < 1) return;
-    
-    const oneRmKg = totalKg * (1 + reps / 30);
-    const oneRmLb = kgToLb(oneRmKg);
-    
-    if (state.unit === 'kg') {
-        elements.oneRmPrimary.textContent = `${formatNumber(oneRmKg, 1)} kg`;
-        elements.oneRmSecondary.textContent = `${formatNumber(oneRmLb, 1)} lb`;
+    if (!hasBw || totalKg <= 0) {
+        elements.strengthRatio.textContent = '--';
+        updateStrengthLevel(null);
+        elements.strengthHint.textContent = hasBw
+            ? 'Load the bar to see where this lift ranks.'
+            : 'Enter your bodyweight to see where this lift ranks.';
+        return;
+    }
+
+    const ratio = totalKg / toKg(state.bodyweight);
+    elements.strengthRatio.textContent = `${formatNumber(ratio, 2)}×`;
+    updateStrengthLevel(ratio);
+
+    const s = CONFIG.strengthStandards[state.exercise];
+    const level = getLevel(ratio);
+    const next = CONFIG.levels[CONFIG.levels.indexOf(level) + 1];
+    if (next) {
+        const neededKg = s[next] * toKg(state.bodyweight) - totalKg;
+        const needed = state.unit === 'kg' ? neededKg : kgToLb(neededKg);
+        elements.strengthHint.textContent =
+            `${formatNumber(needed, 1)} ${state.unit} more on the bar to reach ${next} for ${CONFIG.exercises[state.exercise].toLowerCase()}.`;
     } else {
-        elements.oneRmPrimary.textContent = `${formatNumber(oneRmLb, 1)} lb`;
-        elements.oneRmSecondary.textContent = `${formatNumber(oneRmKg, 1)} kg`;
+        elements.strengthHint.textContent = `Elite ${CONFIG.exercises[state.exercise].toLowerCase()}. Nothing left to unlock.`;
     }
 }
 
+/** Epley: 1RM = weight × (1 + reps / 30) */
+function calculateOneRM(totalKg) {
+    if (!state.reps || state.reps < 1 || totalKg <= 0) {
+        elements.oneRmPrimary.textContent = '--';
+        elements.oneRmSecondary.textContent = state.reps ? '' : 'Add reps';
+        return;
+    }
+
+    const oneRmKg = state.reps === 1 ? totalKg : totalKg * (1 + state.reps / 30);
+    const oneRmLb = kgToLb(oneRmKg);
+    const [p, pu, s, su] = state.unit === 'kg'
+        ? [oneRmKg, 'kg', oneRmLb, 'lb']
+        : [oneRmLb, 'lb', oneRmKg, 'kg'];
+
+    elements.oneRmPrimary.textContent = `${formatNumber(p, 1)} ${pu}`;
+    elements.oneRmSecondary.textContent = `${formatNumber(s, 1)} ${su}`;
+}
+
 // ============================================
-// CUSTOM PLATE FUNCTIONS
+// CUSTOM PLATES
 // ============================================
 
-/**
- * Add custom plate
- */
 function addCustomPlate() {
-    const weight = parseFloat(elements.customPlateWeight.value);
-    
-    if (weight && weight > 0 && !state.customPlates.includes(weight)) {
+    const weight = round(parseFloat(elements.customPlateWeight.value), 2);
+    if (!weight || weight <= 0) {
+        elements.customPlateWeight.focus();
+        return;
+    }
+    const exists = getPlateList().includes(weight);
+    if (!exists) {
         state.customPlates.push(weight);
         state.plates[weight] = 0;
-        elements.customPlateWeight.value = '';
         renderPlateGrid();
         debouncedSave();
     }
+    elements.customPlateWeight.value = '';
+    toggleCustomPlateInput(false);
 }
 
-/**
- * Remove custom plate
- */
 function removeCustomPlate(weight) {
     state.customPlates = state.customPlates.filter(w => w !== weight);
     delete state.plates[weight];
@@ -654,80 +521,79 @@ function removeCustomPlate(weight) {
     debouncedSave();
 }
 
-/**
- * Toggle custom plate input visibility
- */
 function toggleCustomPlateInput(show) {
-    elements.customPlateContainer.style.display = show ? 'block' : 'none';
+    elements.customPlateContainer.style.display = show ? 'grid' : 'none';
     elements.addPlateBtn.style.display = show ? 'none' : 'inline-flex';
-    
-    if (show) {
-        elements.customPlateWeight.focus();
-    }
+    if (show) elements.customPlateWeight.focus();
+    else elements.addPlateBtn.focus();
 }
 
 // ============================================
 // UNIT CONVERSION
 // ============================================
 
-/**
- * Switch between kg and lb
- */
+/** Snap a standard plate to the nearest standard plate in the other unit */
+function nearestStandard(weightInNewUnit, unit) {
+    return CONFIG.plates[unit].reduce((best, w) =>
+        Math.abs(w - weightInNewUnit) < Math.abs(best - weightInNewUnit) ? w : best);
+}
+
 function switchUnit(newUnit) {
     if (newUnit === state.unit) return;
-    
-    // Convert custom bar weight
-    if (state.barType === 'custom' && state.customBarWeight !== null) {
-        state.customBarWeight = newUnit === 'kg'
-            ? lbToKg(state.customBarWeight)
-            : kgToLb(state.customBarWeight);
+    const convert = w => (newUnit === 'kg' ? lbToKg(w) : kgToLb(w));
+
+    if (state.customBarWeight !== null) {
+        state.customBarWeight = round(convert(state.customBarWeight), 1);
     }
-    
-    // Convert bodyweight
+
     if (state.bodyweight) {
-        state.bodyweight = newUnit === 'kg'
-            ? lbToKg(state.bodyweight)
-            : kgToLb(state.bodyweight);
-        elements.bodyweight.value = formatNumber(state.bodyweight, 1);
+        state.bodyweight = round(convert(state.bodyweight), 1);
+        elements.bodyweight.value = state.bodyweight;
     }
-    
-    // Convert custom plates
-    state.customPlates = state.customPlates.map(w =>
-        newUnit === 'kg' ? lbToKg(w) : kgToLb(w)
-    );
-    
-    // Convert existing plates
+
+    const oldCustom = state.customPlates;
+    const newCustom = oldCustom.map(w => round(convert(w), 2));
+
     const newPlates = {};
-    Object.entries(state.plates).forEach(([weight, count]) => {
-        const newWeight = newUnit === 'kg'
-            ? lbToKg(parseFloat(weight))
-            : kgToLb(parseFloat(weight));
-        newPlates[newWeight] = count;
+    Object.entries(state.plates).forEach(([w, count]) => {
+        const weight = parseFloat(w);
+        const customIdx = oldCustom.indexOf(weight);
+        const newWeight = customIdx >= 0
+            ? newCustom[customIdx]
+            : nearestStandard(convert(weight), newUnit);
+        newPlates[newWeight] = (newPlates[newWeight] || 0) + count;
     });
+
+    state.customPlates = newCustom;
     state.plates = newPlates;
-    
     state.unit = newUnit;
+
     updateUnitDisplay();
+    updateBarDisplay();
     renderPlateGrid();
     calculateTotal();
     debouncedSave();
 }
 
 // ============================================
-// EVENT LISTENERS
+// EVENTS
 // ============================================
 
+function changePlate(weight, delta) {
+    const next = Math.max(0, (state.plates[weight] || 0) + delta);
+    state.plates[weight] = next;
+    updatePlateGrid();
+    calculateTotal();
+    debouncedSave();
+}
+
 function setupEventListeners() {
-    // Unit toggle
     elements.unitBtns.forEach(btn => {
-        btn.addEventListener('click', () => {
-            switchUnit(btn.dataset.unit);
-        });
+        btn.addEventListener('click', () => switchUnit(btn.dataset.unit));
     });
-    
-    // Bar selection
+
     elements.barRadios.forEach(radio => {
-        radio.addEventListener('change', (e) => {
+        radio.addEventListener('change', e => {
             state.barType = e.target.value;
             if (state.barType !== 'custom') {
                 state.customBarWeight = null;
@@ -736,92 +602,96 @@ function setupEventListeners() {
             updateBarDisplay();
             calculateTotal();
             debouncedSave();
+            if (state.barType === 'custom') elements.customBarWeight.focus();
         });
     });
-    
-    // Custom bar weight input
-    elements.customBarWeight.addEventListener('input', (e) => {
-        const value = parseFloat(e.target.value);
-        state.customBarWeight = value || null;
+
+    elements.customBarWeight.addEventListener('input', e => {
+        state.customBarWeight = parseFloat(e.target.value) || null;
         calculateTotal();
         debouncedSave();
     });
-    
-    // Add custom plate button
-    elements.addPlateBtn.addEventListener('click', () => {
-        toggleCustomPlateInput(true);
+
+    // One delegated listener for every plate tile
+    elements.plateGrid.addEventListener('click', e => {
+        const btn = e.target.closest('button');
+        if (!btn) return;
+        const weight = parseFloat(btn.dataset.weight);
+        if (btn.classList.contains('btn-increase')) changePlate(weight, 1);
+        else if (btn.classList.contains('btn-decrease')) changePlate(weight, -1);
+        else if (btn.classList.contains('plate-remove')) removeCustomPlate(weight);
     });
-    
-    // Confirm custom plate
+
+    elements.addPlateBtn.addEventListener('click', () => toggleCustomPlateInput(true));
     elements.confirmPlateBtn.addEventListener('click', addCustomPlate);
-    
-    // Cancel custom plate
     elements.cancelPlateBtn.addEventListener('click', () => {
         elements.customPlateWeight.value = '';
         toggleCustomPlateInput(false);
     });
-    
-    // Custom plate input enter key
-    elements.customPlateWeight.addEventListener('keypress', (e) => {
+    elements.customPlateWeight.addEventListener('keydown', e => {
         if (e.key === 'Enter') addCustomPlate();
+        if (e.key === 'Escape') elements.cancelPlateBtn.click();
     });
-    
-    // Bodyweight input
-    elements.bodyweight.addEventListener('input', (e) => {
+
+    elements.bodyweight.addEventListener('input', e => {
         state.bodyweight = parseFloat(e.target.value) || null;
         calculateTotal();
         debouncedSave();
     });
-    
-    // Exercise selection
-    elements.exercise.addEventListener('change', (e) => {
+
+    elements.exercise.addEventListener('change', e => {
         state.exercise = e.target.value;
         calculateTotal();
         debouncedSave();
     });
-    
-    // Reps input
-    elements.reps.addEventListener('input', (e) => {
-        state.reps = parseInt(e.target.value) || null;
+
+    elements.reps.addEventListener('input', e => {
+        const reps = parseInt(e.target.value, 10);
+        state.reps = reps > 0 ? Math.min(reps, 15) : null;
         calculateTotal();
         debouncedSave();
     });
-    
-    // Reset button
+
     elements.resetBtn.addEventListener('click', () => {
-        if (confirm('Reset all values to default?')) {
+        if (confirm('Clear the bar, plates and strength inputs?')) {
             clearState();
             resetToDefaults();
         }
     });
+
+    window.addEventListener('resize', debounce(fitBarbell, 100));
+
+    // Mobile: show compact total once the scoreboard leaves the viewport
+    if ('IntersectionObserver' in window) {
+        new IntersectionObserver(([entry]) => {
+            elements.miniTotal.classList.toggle('is-visible', !entry.isIntersecting);
+        }).observe(elements.totalValue);
+    }
 }
 
 // ============================================
-// RESET FUNCTION
+// RESET
 // ============================================
 
 function resetToDefaults() {
-    state.unit = 'kg';
-    state.barType = 'olympic';
-    state.customBarWeight = null;
-    state.plates = {};
-    state.customPlates = [];
-    state.bodyweight = null;
-    state.exercise = 'bench';
-    state.reps = null;
-    
-    // Reset UI inputs
+    Object.assign(state, {
+        unit: 'kg',
+        barType: 'olympic',
+        customBarWeight: null,
+        plates: {},
+        customPlates: [],
+        bodyweight: null,
+        exercise: 'bench',
+        reps: null
+    });
+
     elements.customBarWeight.value = '';
     elements.bodyweight.value = '';
     elements.reps.value = '';
     elements.exercise.value = 'bench';
-    elements.strengthRatio.textContent = '--';
-    elements.strengthLevel.textContent = '--';
-    elements.strengthLevel.className = 'result-badge';
-    elements.oneRmPrimary.textContent = '--';
-    elements.oneRmSecondary.textContent = '--';
-    elements.lastSaved.textContent = 'Never saved';
-    
+    elements.lastSaved.textContent = 'Not yet';
+    toggleCustomPlateInput(false);
+
     updateUnitDisplay();
     updateBarDisplay();
     renderPlateGrid();
@@ -829,36 +699,23 @@ function resetToDefaults() {
 }
 
 // ============================================
-// DEBOUNCED SAVE
+// INIT
 // ============================================
 
 const debouncedSave = debounce(saveState, 500);
 
-// ============================================
-// INITIALIZATION
-// ============================================
-
 function init() {
-    // Try to load saved state
-    const loaded = loadState();
-    
-    if (loaded) {
-        // Restore UI from loaded state
-        updateUnitDisplay();
-        updateBarDisplay();
+    if (loadState()) {
         elements.customBarWeight.value = state.customBarWeight || '';
         elements.bodyweight.value = state.bodyweight || '';
         elements.exercise.value = state.exercise;
         elements.reps.value = state.reps || '';
     }
-    
-    // Setup event listeners
+    updateUnitDisplay();
+    updateBarDisplay();
     setupEventListeners();
-    
-    // Initial render
     renderPlateGrid();
     calculateTotal();
 }
 
-// Start the app when DOM is ready
 document.addEventListener('DOMContentLoaded', init);
